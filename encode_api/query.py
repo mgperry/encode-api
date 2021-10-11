@@ -1,7 +1,28 @@
 import requests
 from pprint import pprint
 
-ENCODE_URL = "https://www.encodeproject.org/search/?"
+ENCODE_HOME = "https://www.encodeproject.org"
+
+
+def encode_query(params):
+    url = ENCODE_HOME + "/search/?" + "&".join(f"{x}={y}" for x, y in params.items())
+    print(f"Fetching {url}...")
+    r = requests.get(url)
+    return r.json()
+
+
+def encode_experiment(acc):
+    url = f"{ENCODE_HOME}/experiment/{acc}/?format=json"
+    print(f"Fetching {url}...")
+    return requests.get(url).json()
+
+
+def match(subject, query):
+    for k, v in query.items():
+        if subject[k] != v:
+            return False
+    
+    return True
 
 experiment_spec = {
     "id": "@id",
@@ -16,6 +37,7 @@ experiment_spec = {
 file_spec = {
     "id": "@id",
     "accession": "accession",
+    "assembly": "assembly",
     "cell_line": "biosample_ontology",
     "experiment": "dataset",
     "assay": "assay_term_name",
@@ -23,6 +45,7 @@ file_spec = {
     "biological_replicates": "biological_replicates",
     "target": "target",
     "file_format": "file_format",
+    "output_type": "output_type",
     "assembly": "assembly",
 }
 
@@ -45,18 +68,33 @@ class Query:
 
     default_params = ["type", "perturbed", "assembly", "status", "frame", "format"]
 
-    def __init__(self, params) -> None:
+    def __init__(self, params, fetch_files=True) -> None:
         defaults = {x: getattr(self, x) for x in self.default_params}
         ps = {**defaults, **params}
-        url = ENCODE_URL + "&".join(f"{str(x)}={str(y)}" for x, y in ps.items())
 
         print("Querying experiments...")
-        r = requests.get(url)
+        self.json = encode_query(ps)["@graph"]
 
-        self.json = r.json()["@graph"]
         self.experiments = [experiment(x) for x in self.json]
         print(f"Found {len(self.experiments)} experiments.")
 
+        self.files = []
+
+        if fetch_files:
+            self.fetch_files()
+
+    def file_types(self):
+        file_types = set((f["output_type"], f["file_format"]) for f in self.files)
+        return [{"output_type": t[0], "file_format": t[1]} for t in file_types]
+
+    def filter_files(self, query):
+        return [f for f in self.files if match(f, query)]
+
+    def fetch_files(self):
+        for e in self.experiments:
+            acc = e["accession"]
+            fs = [file(f) for f in encode_experiment(acc)["files"]]
+            self.files.extend(fs)
 
 class HistoneQuery(Query):
     assay_title = "Histone+ChIP-seq"
@@ -75,7 +113,6 @@ class ExpressionQuery(Query):
 if __name__ == "__main__":
 
     k562_tf_query = {
-        "type": "Experiment",
         "biosample_ontology.term_name": "K562",
         "limit": 5,
     }
@@ -83,4 +120,11 @@ if __name__ == "__main__":
     q = TFQuery(k562_tf_query)
     js = q.json
 
-    pprint(q.experiments)
+    pprint(q.file_types())
+
+    pprint(q.filter_files({"output_type": "IDR thresholded peaks", "file_format": "bed", "biological_replicates": [1, 2]}))
+
+    all_tfs = TFQuery({"limit": "all"}, fetch_files=False)
+
+    print(f"{len(all_tfs.experiments)} TF experiments found.")
+
