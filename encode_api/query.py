@@ -13,7 +13,7 @@ def encode_query(params):
 
 def encode_experiment(acc):
     url = f"{ENCODE_HOME}/experiment/{acc}/?format=json"
-    print(f"Fetching {url}...")
+    print(f"Fetching data for /experiment/{acc}/...")
     return requests.get(url).json()
 
 
@@ -21,8 +21,9 @@ def match(subject, query):
     for k, v in query.items():
         if subject[k] != v:
             return False
-    
+
     return True
+
 
 experiment_spec = {
     "id": "@id",
@@ -47,6 +48,7 @@ file_spec = {
     "file_format": "file_format",
     "output_type": "output_type",
     "assembly": "assembly",
+    "cloud_metadata": "cloud_metadata",
 }
 
 
@@ -96,6 +98,7 @@ class Query:
             fs = [file(f) for f in encode_experiment(acc)["files"]]
             self.files.extend(fs)
 
+
 class HistoneQuery(Query):
     assay_title = "Histone+ChIP-seq"
     default_params = Query.default_params + ["assay_title"]
@@ -110,11 +113,18 @@ class ExpressionQuery(Query):
     pass
 
 
+def download(acc):
+    url = f"{ENCODE_HOME}/file/{acc}/?format=json"
+    print(f"Fetching {url}...")
+    info = requests.get(url).json()
+    return info["cloud_metadata"]["url"]
+
+
 if __name__ == "__main__":
 
     k562_tf_query = {
         "biosample_ontology.term_name": "K562",
-        "limit": 5,
+        "limit": 1,
     }
 
     q = TFQuery(k562_tf_query)
@@ -122,9 +132,13 @@ if __name__ == "__main__":
 
     pprint(q.file_types())
 
-    pprint(q.filter_files({"output_type": "IDR thresholded peaks", "file_format": "bed", "biological_replicates": [1, 2]}))
+    peaks = q.filter_files(
+        {
+            "output_type": "IDR thresholded peaks",
+            "file_format": "bed",
+            "biological_replicates": [1, 2],
+        }
+    )
 
-    all_tfs = TFQuery({"limit": "all"}, fetch_files=False)
-
-    print(f"{len(all_tfs.experiments)} TF experiments found.")
-
+    js2 = download(peaks[0]["accession"])
+    pprint(js2)
