@@ -1,4 +1,5 @@
 import re
+import wget # seems to have a ton of dependencies for some reason, might be worth doing it through requests later
 from pathlib import Path
 
 ENCODE_ACCESSION = re.compile(r"^ENC[A-Z]{2}[0-9]{3}[A-Z]{3}")
@@ -17,9 +18,27 @@ class EncodeDataStore:
             if hit:
                 self.files[hit.group()] = f
 
-    def find(self, accession):
-        return self.files.get(accession, "")
+    def find(self, file: dict):
+        return self.files.get(file["accession"], "")
 
+    def download(self, file: dict):
+        key = file["accession"]
+
+        if key in self.files:
+            return self.files[key]
+
+        if "url" in file:
+            url = file["url"]
+            filename = url.split("/")[-1] # might be better in some cases (e.g. scaffold) to take from href
+            print(f"Downloading file {filename}...")
+            wget.download(url, str(self.path / filename))
+            print("")
+            self.files[key] = self.path / filename
+        else:
+            # could fetch data via accession but this is slow for many files
+            key = file["accession"]
+            print(f"File {key} does not contain a download url.")
+            
 
 if __name__ == "__main__":
     encode_dir = EncodeDataStore(Path.home() / "Data" / "ENCODE" / "files")

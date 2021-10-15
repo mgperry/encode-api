@@ -21,8 +21,8 @@ def match(subject, query):
     for k, v in query.items():
         if subject[k] != v:
             return False
-
-    return True
+    else:
+        return True
 
 
 experiment_spec = {

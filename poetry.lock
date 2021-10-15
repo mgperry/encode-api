@@ -497,10 +497,18 @@ category = "main"
 optional = false
 python-versions = "*"
 
+[[package]]
+name = "wget"
+version = "3.2"
+description = "pure python download utility"
+category = "main"
+optional = false
+python-versions = "*"
+
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.9"
-content-hash = "37e1c4bcf4c79b2ea128e53f313bec302b5a2fc3357b3428310135d8d55b7d0d"
+content-hash = "325bdacba24055ba67d98b73d1db6d4172b362b013914bb9c528790f05c9cd0a"
 
 [metadata.files]
 appnope = [
@@ -871,4 +879,7 @@ urllib3 = [
 wcwidth = [
     {file = "wcwidth-0.2.5-py2.py3-none-any.whl", hash = "sha256:beb4802a9cebb9144e99086eff703a642a13d6a0052920003a230f3294bbe784"},
     {file = "wcwidth-0.2.5.tar.gz", hash = "sha256:c4d647b99872929fdb7bdcaa4fbe7f01413ed3d98077df798530e5b04f116c83"},
+]
+wget = [
+    {file = "wget-3.2.zip", hash = "sha256:35e630eca2aa50ce998b9b1a127bb26b30dfee573702782aa982f875e3f16061"},
 ]
