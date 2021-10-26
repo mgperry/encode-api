@@ -29,6 +29,7 @@ experiment_spec = {
     "id": "@id",
     "accession": "accession",
     "cell_line": "biosample_ontology",
+    "biosample_summary": "biosample_summary",
     "assay": "assay_term_name",
     "target": "target",
     "files": "files",
@@ -67,8 +68,9 @@ class Query:
     status = "released"
     frame = "object"
     format = "json"
+    limit = "all"
 
-    default_params = ["type", "perturbed", "assembly", "status", "frame", "format"]
+    default_params = ["type", "perturbed", "assembly", "status", "frame", "format", "limit"]
 
     def __init__(self, params, fetch_files=True) -> None:
         defaults = {x: getattr(self, x) for x in self.default_params}
