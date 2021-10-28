@@ -4,13 +4,22 @@ from pprint import pprint
 ENCODE_HOME = "https://www.encodeproject.org"
 
 
+def escape(x):
+    return str(x).replace(" ", "+")
+
+
 def encode_query(params):
-    url = ENCODE_HOME + "/search/?" + "&".join(f"{x}={y}" for x, y in params.items())
+    url = (
+        ENCODE_HOME
+        + "/search/?format=json&"
+        + "&".join(f"{x}={escape(y)}" for x, y in params.items())
+    )
     print(f"Fetching {url}...")
     r = requests.get(url)
-    return r.json()
+    return r.json()["@graph"]
 
 
+# TODO refactor this into a generic encode object getter, and add type
 def encode_experiment(acc):
     url = f"{ENCODE_HOME}/experiment/{acc}/?format=json"
     print(f"Fetching data for /experiment/{acc}/...")
@@ -25,40 +34,41 @@ def match(subject, query):
         return True
 
 
-experiment_spec = {
-    "id": "@id",
-    "accession": "accession",
-    "cell_line": "biosample_ontology",
-    "biosample_summary": "biosample_summary",
-    "assay": "assay_term_name",
-    "target": "target",
-    "files": "files",
-}
+# TODO get rid of the specs, they are probably causing more harm than good.
+experiment_spec = [
+    "@id",
+    "accession",
+    "biosample_ontology",
+    "biosample_summary",
+    "assay_term_name",
+    "target",
+    "files",
+]
 
 
-file_spec = {
-    "id": "@id",
-    "accession": "accession",
-    "assembly": "assembly",
-    "cell_line": "biosample_ontology",
-    "experiment": "dataset",
-    "assay": "assay_term_name",
-    "technical_replicates": "technical_replicates",
-    "biological_replicates": "biological_replicates",
-    "target": "target",
-    "file_format": "file_format",
-    "output_type": "output_type",
-    "assembly": "assembly",
-    "cloud_metadata": "cloud_metadata",
-}
+file_spec = [
+    "@id",
+    "accession",
+    "assembly",
+    "biosample_ontology",
+    "dataset",
+    "assay_term_name",
+    "technical_replicates",
+    "biological_replicates",
+    "target",
+    "file_format",
+    "output_type",
+    "assembly",
+    "cloud_metadata",
+]
 
 
-def parse_json(d, info):
-    return {k: d.get(v, "") for k, v in info.items()}
+def select_keys(d, info):
+    return {k: d.get(k, "") for k in info}
 
 
-experiment = lambda d: parse_json(d, experiment_spec)
-file = lambda d: parse_json(d, file_spec)
+experiment = lambda d: select_keys(d, experiment_spec)
+file = lambda d: select_keys(d, file_spec)
 
 
 class Query:
@@ -67,80 +77,78 @@ class Query:
     assembly = "GRCh38"
     status = "released"
     frame = "object"
-    format = "json"
     limit = "all"
 
-    default_params = ["type", "perturbed", "assembly", "status", "frame", "format", "limit"]
+    default_params = ["type", "perturbed", "assembly", "status", "frame", "limit"]
 
-    def __init__(self, params, fetch_files=True) -> None:
+    def __init__(self, params) -> None:
         defaults = {x: getattr(self, x) for x in self.default_params}
-        ps = {**defaults, **params}
+        self.params = {**defaults, **params}
 
         print("Querying experiments...")
-        self.json = encode_query(ps)["@graph"]
-
-        self.experiments = [experiment(x) for x in self.json]
+        self.experiments = encode_query(self.params)
         print(f"Found {len(self.experiments)} experiments.")
 
-        self.files = []
-
-        if fetch_files:
+    def file_types(self):
+        if not self.files:
             self.fetch_files()
 
-    def file_types(self):
         file_types = set((f["output_type"], f["file_format"]) for f in self.files)
         return [{"output_type": t[0], "file_format": t[1]} for t in file_types]
 
+    # local filtering of files
     def filter_files(self, query):
         return [f for f in self.files if match(f, query)]
 
-    def fetch_files(self):
+    def fetch_files(self, params=None, replicated=False):
+        self.files = []
+
+        if params is None:
+            params = {}
+
         for e in self.experiments:
-            acc = e["accession"]
-            fs = [file(f) for f in encode_experiment(acc)["files"]]
+            fs = encode_query(
+                {"type": "File", "frame": "object", "dataset": e["@id"], **params}
+            )
+
+            if replicated:
+                fs = [f for f in fs if len(f["biological_replicates"]) > 1]
+
             self.files.extend(fs)
 
 
 class HistoneQuery(Query):
-    assay_title = "Histone+ChIP-seq"
+    assay_title = "Histone ChIP-seq"
     default_params = Query.default_params + ["assay_title"]
 
 
 class TFQuery(Query):
-    assay_title = "TF+ChIP-seq"
+    assay_title = "TF ChIP-seq"
     default_params = Query.default_params + ["assay_title"]
 
 
+# TODO
 class ExpressionQuery(Query):
     pass
 
 
-def download(acc):
-    url = f"{ENCODE_HOME}/file/{acc}/?format=json"
-    print(f"Fetching {url}...")
-    info = requests.get(url).json()
-    return info["cloud_metadata"]["url"]
-
-
+# TODO replace this with a better example, also tests
 if __name__ == "__main__":
 
-    k562_tf_query = {
-        "biosample_ontology.term_name": "K562",
-        "limit": 1,
-    }
-
-    q = TFQuery(k562_tf_query)
-    js = q.json
-
-    pprint(q.file_types())
-
-    peaks = q.filter_files(
+    q = TFQuery(
         {
-            "output_type": "IDR thresholded peaks",
-            "file_format": "bed",
-            "biological_replicates": [1, 2],
+            "biosample_ontology.term_name": "K562",
+            "limit": 5,
         }
     )
 
-    js2 = download(peaks[0]["accession"])
-    pprint(js2)
+    q.fetch_files(
+        {
+            "assembly": "GRCh38",
+            "output_type": "IDR thresholded peaks",
+            "file_format": "bed",
+        },
+        replicated=True,
+    )
+
+    pprint(q.files)
