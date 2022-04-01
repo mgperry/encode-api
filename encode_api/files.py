@@ -2,7 +2,7 @@ import re
 import wget # seems to have a ton of dependencies for some reason, might be worth doing it through requests later
 from pathlib import Path
 
-ENCODE_ACCESSION = re.compile(r"^ENC[A-Z]{2}[0-9]{3}[A-Z]{3}")
+ENCODE_ACCESSION = re.compile(r"ENC[A-Z]{2}[0-9]{3}[A-Z]{3}")
 
 
 class EncodeDataStore:
@@ -14,30 +14,21 @@ class EncodeDataStore:
     # check for duplicates
     def refresh(self):
         for f in self.path.iterdir():
+            if f.name[-3:] in ["bai", "fai"]:
+                next
             hit = ENCODE_ACCESSION.search(f.name)
             if hit:
                 self.files[hit.group()] = f
 
-    def find(self, file: dict):
-        return self.files.get(file["accession"], "")
+    def find(self, id: str) -> Path:
+        return self.files.get(id, "")
 
-    def download(self, file: dict):
-        key = file["accession"]
-
-        if key in self.files:
-            return self.files[key]
-
-        if "url" in file:
-            url = file["url"]
-            filename = url.split("/")[-1] # might be better in some cases (e.g. scaffold) to take from href
-            print(f"Downloading file {filename}...")
-            wget.download(url, str(self.path / filename))
-            print("")
-            self.files[key] = self.path / filename
-        else:
-            # could fetch data via accession but this is slow for many files
-            key = file["accession"]
-            print(f"File {key} does not contain a download url.")
+    def download_url(self, url: str):
+        filename = url.split("/")[-1] # might be better in some cases (e.g. scaffold) to take from href
+        print(f"Downloading file {filename}...")
+        wget.download(url, str(self.path / filename))
+        print("")
+        self.refresh()
             
 
 if __name__ == "__main__":

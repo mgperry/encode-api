@@ -1,4 +1,5 @@
 import requests
+from .utils import select, match
 from pprint import pprint
 
 ENCODE_HOME = "https://www.encodeproject.org"
@@ -24,14 +25,6 @@ def encode_experiment(acc):
     url = f"{ENCODE_HOME}/experiment/{acc}/?format=json"
     print(f"Fetching data for /experiment/{acc}/...")
     return requests.get(url).json()
-
-
-def match(subject, query):
-    for k, v in query.items():
-        if subject[k] != v:
-            return False
-    else:
-        return True
 
 
 # TODO get rid of the specs, they are probably causing more harm than good.
@@ -63,12 +56,8 @@ file_spec = [
 ]
 
 
-def select_keys(d, info):
-    return {k: d.get(k, "") for k in info}
-
-
-experiment = lambda d: select_keys(d, experiment_spec)
-file = lambda d: select_keys(d, file_spec)
+experiment = lambda d: select(d, experiment_spec)
+file = lambda d: select(d, file_spec)
 
 
 class Query:
